@@ -12,7 +12,7 @@ type opml struct {
 
 type outline struct {
 	Type     string    `xml:"type,attr,omitempty"`
-	Title    string    `xml:"text,attr"`
+	Title    string    `xml:"title,attr"`
 	FeedUrl  string    `xml:"xmlUrl,attr,omitempty"`
 	SiteUrl  string    `xml:"htmlUrl,attr,omitempty"`
 	Outlines []outline `xml:"outline,omitempty"`
@@ -21,7 +21,7 @@ type outline struct {
 func buildFolder(title string, outlines []outline) Folder {
 	folder := Folder{Title: title}
 	for _, outline := range outlines {
-		if outline.Type == "rss" {
+		if outline.Type == "rss" || outline.FeedUrl != "" {
 			folder.Feeds = append(folder.Feeds, Feed{
 				Title:   outline.Title,
 				FeedUrl: outline.FeedUrl,
