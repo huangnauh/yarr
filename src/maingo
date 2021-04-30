@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/nkanaev/yarr/src/env"
 	"github.com/nkanaev/yarr/src/platform"
 	"github.com/nkanaev/yarr/src/server"
 	"github.com/nkanaev/yarr/src/storage"
@@ -34,9 +33,7 @@ type Config struct {
 }
 
 func initConfig(appPath string) *Config {
-	config := &Config{
-		Address: "127.0.0.1:7070",
-	}
+	config := &Config{}
 	appConfigPath := filepath.Join(appPath, "yarr.json")
 	if _, err := os.Stat(appConfigPath); err == nil {
 		log.Printf("config path: %s", appConfigPath)
@@ -65,22 +62,18 @@ func main() {
 		log.Fatal("Failed to create app config dir: ", err)
 	}
 	config := initConfig(appPath)
-	if err := env.Fill(APP, config); err != nil {
-		log.Fatal("Failed to fill env: ", err)
-	}
 
-	var addr, db, authfile, certfile, keyfile, basepath string
-	var ver, open bool
-	flag.StringVar(&addr, "addr", config.Address, "address to run server on")
-	flag.StringVar(&authfile, "auth-file", config.AuthFile, "path to a file containing username:password")
-	flag.StringVar(&basepath, "base", config.BasePath, "base path of the service url")
-	flag.StringVar(&certfile, "cert-file", config.CertFile, "path to cert file for https")
-	flag.StringVar(&keyfile, "key-file", config.KeyFile, "path to key file for https")
-	flag.StringVar(&db, "db", config.Database, "storage file path")
-	flag.BoolVar(&open, "open", config.OpenBrowser, "open the server in browser")
+	var ver bool
+	flag.StringVar(&config.Address, "addr", "127.0.0.1:7070", "address to run server on")
+	flag.StringVar(&config.AuthFile, "auth-file", "", "path to a file containing username:password")
+	flag.StringVar(&config.BasePath, "base", "", "base path of the service url")
+	flag.StringVar(&config.CertFile, "cert-file", "", "path to cert file for https")
+	flag.StringVar(&config.KeyFile, "key-file", "", "path to key file for https")
+	flag.StringVar(&config.Database, "db", "", "storage file path")
+	flag.StringVar(&config.LogPath, "log", "", "log path")
+	flag.BoolVar(&config.OpenBrowser, "open", false, "open the server in browser")
 	flag.BoolVar(&ver, "version", false, "print application version")
 	flag.Parse()
-
 	if ver {
 		fmt.Printf("v%s (%s)\n", Version, GitHash)
 		return
@@ -95,16 +88,17 @@ func main() {
 	} else {
 		log.SetOutput(os.Stdout)
 	}
+	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 
-	if db == "" {
-		db = filepath.Join(appPath, "storage.db")
+	if config.Database == "" {
+		config.Database = filepath.Join(appPath, "storage.db")
 	}
 
 	log.Printf("config %+v", config)
 
 	var username, password string
-	if authfile != "" {
-		f, err := os.Open(authfile)
+	if config.AuthFile != "" {
+		f, err := os.Open(config.AuthFile)
 		if err != nil {
 			log.Fatal("Failed to open auth file: ", err)
 		}
@@ -122,24 +116,24 @@ func main() {
 		}
 	}
 
-	if (certfile != "" || keyfile != "") && (certfile == "" || keyfile == "") {
+	if (config.CertFile != "" || config.KeyFile != "") && (config.CertFile == "" || config.KeyFile == "") {
 		log.Fatalf("Both cert & key files are required")
 	}
 
-	store, err := storage.New(db)
+	store, err := storage.New(config.Database)
 	if err != nil {
 		log.Fatal("Failed to initialise database: ", err)
 	}
 
-	srv := server.NewServer(store, addr)
+	srv := server.NewServer(store, config.Address)
 
-	if basepath != "" {
-		srv.BasePath = "/" + strings.Trim(basepath, "/")
+	if config.BasePath != "" {
+		srv.BasePath = "/" + strings.Trim(config.BasePath, "/")
 	}
 
-	if certfile != "" && keyfile != "" {
-		srv.CertFile = certfile
-		srv.KeyFile = keyfile
+	if config.CertFile != "" && config.KeyFile != "" {
+		srv.CertFile = config.CertFile
+		srv.KeyFile = config.KeyFile
 	}
 
 	if username != "" && password != "" {
@@ -148,7 +142,7 @@ func main() {
 	}
 
 	log.Printf("starting server at %s", srv.GetAddr())
-	if open {
+	if config.OpenBrowser {
 		platform.Open(srv.GetAddr())
 	}
 	platform.Start(srv)
